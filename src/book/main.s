@@ -205,6 +205,10 @@ wait_vblank2:
     ; jmp main
 .endproc
 
+; ************************************************************
+; NMI interrupt handler
+; ************************************************************
+
 .segment "CODE"
 .proc nmi
     ; === Save registers ===
@@ -213,7 +217,6 @@ wait_vblank2:
     pha
     tya
     pha
-
     ; === Do we need to render? ===
     lda nmi_ready
     ; 0 - do nithing this frame
@@ -268,4 +271,100 @@ ppu_update_end:
     pla
     rti
 
+.endproc
+
+; ************************************************************
+; ppu_update: waits until next NMI and turns rendering on (if not already)
+; ************************************************************
+
+.segment "CODE"
+.proc ppu_update
+    lda #1
+    sta nmi_ready
+loop:
+    lda nmi_ready
+    bne loop
+    
+    rts
+.endproc
+
+; ************************************************************
+; ppu_off: waits until next NMI and turns rendering off
+; (now safe to write PPU directly via PPU_VRAM_IO)
+; ************************************************************
+
+.segment "CODE"
+.proc ppu_off
+    lda #2
+    sta nmi_ready
+loop:
+    lda nmi_ready
+    bne loop
+
+    rts
+.endproc
+
+; ************************************************************
+; Clear the name table
+; ************************************************************
+.segment "CODE"
+.proc clear_nametable
+    lda PPU_STATUS                      ; Reset the address latch
+    ; === set PPU address $2000 ===
+    lda #$20
+    sta PPU_VRAM_ADDRESS2
+    lda #$00
+    sta PPU_VRAM_ADDRESS2
+
+    ; === Empty the name table
+    lda #0
+    ldy #30                             ; Clears 30 rows
+rowloop:
+    ldx #32                             ; 32 columns
+    columnloop:
+        sta PPU_VRAM_IO
+        dex
+        bne columnloop
+    dey
+    bne rowloop
+
+    ; === Empty ttribute table in 64 bytes
+    ldx #64
+loop:
+    sta PPU_VRAM_IO
+    dex
+    bne loop
+
+    rts
+.endproc
+
+; ************************************************************
+; gamepad_poll reads the gamepad state into the variable labeled "gamepad"
+;
+; Shift register: [A][B][Select][Start][Up][Down][Left][Right]
+; Reads each bit one iteration and put to one byte
+; ************************************************************
+
+.segment "CODE"
+.proc gamepad_poll
+    ; === Fix current state of buttons ===
+    lda #1
+    sta JOYPAD1
+    lda #0
+    sta JOYPAD1
+
+    ldx #8                              ; Want to read 8 bits of buttons
+loop:
+    pha                                 ; current A to stack (Result)
+    lda JOYPAD1                         ; 
+
+    and #%00000011
+    cmp #%00000001                      ; Check button bit
+    pla                                 ; Get current A from stack
+    ror                                 ; Put carry bit to A
+
+    dex
+    bne loop
+    sta gamepad
+    rts
 .endproc
