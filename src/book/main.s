@@ -75,6 +75,7 @@ d_y:       .res 1                       ; Y velocity of the ball
 
 ; ************************************************************
 ; Sprite OAM Data area - copied in NMI routine
+; OAM (Object Attribute Memory)
 ; ************************************************************
 
 .segment "OAM"
@@ -201,10 +202,70 @@ wait_vblank2:
     ; $1000–$1FFF  → Pattern Table 1
     sta PPU_CONTROL
 
-    jmp main
+    ; jmp main
 .endproc
 
 .segment "CODE"
+.proc nmi
+    ; === Save registers ===
+    pha
+    txa
+    pha
+    tya
+    pha
 
-nmi:
+    ; === Do we need to render? ===
+    lda nmi_ready
+    ; 0 - do nithing this frame
+    ; 1 - push a normal PPU update
+    ; 2 - turn rendering off on the next NMI
+    bne :+                              ; 0 - do nothing
+        jmp ppu_update_end
+    :
+    cmp #2                              ; 2 - turn rendering off
+    bne cond_render
+        lda #%00000000
+        sta PPU_MASK                    ; Disable rendering
+        ldx #0
+        stx nmi_ready                   ; Clear nmi_ready
+        jmp ppu_update_end
+
+cond_render:
+    ; === Transfer the sprite to video memory (256 bytes)
+    ldx #0
+    stx PPU_SPRRAM_ADDRESS
+    lda #>oam
+    sta SPRITE_DMA
+
+    ; === Transfer the pallette to video memory (32 bytes)
+    lda #%10001000
+    sta PPU_CONTROL                     ; Ensure that NMI interrupts is still enabled
+    lda PPU_STATUS                      ; Reset latch PPU (PPU waits: 1th write - hi byte, 2th write - lo byte)
+    lda #$3F                            ; Set dst = 3F00
+    sta PPU_VRAM_ADDRESS2
+    stx PPU_VRAM_ADDRESS2
+    ldx #0                              ; Loop index
+loop:
+    lda palette, x                      ; A = palette[X]
+    sta PPU_VRAM_IO                     ; Write to PPU
+    inx                                 ; X++ $3F00 → $3F01 → $3F02 → ...
+    cpx #32                             ; X < 32
+    bcc loop
+    ; Done: $3F00–$3F1F
+
+    lda #%00011110
+    sta PPU_MASK                        ; Enable rendering
+
+    ldx #0
+    stx nmi_ready                       ; Flag the PPU update complete
+
+ppu_update_end:
+    ; === Restore registers and return ===
+    pla
+    tay
+    pla
+    tax
+    pla
     rti
+
+.endproc
