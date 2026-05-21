@@ -1,7 +1,7 @@
 ASM = ca65
 LD  = ld65
 
-PROJECTS = hello_world book
+PROJECTS = hello_world cgp_simple_game nes_asm
 
 .PHONY: all clean $(PROJECTS)
 

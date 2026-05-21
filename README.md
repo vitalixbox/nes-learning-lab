@@ -34,4 +34,4 @@ NES Assemblers:
 - https://github.com/parasyte/asm6
 
 Emulators:
-- https://github.com/SourMesen/Mesen2
+- https://fceux.com
