@@ -202,7 +202,7 @@ wait_vblank2:
     ; $1000–$1FFF  → Pattern Table 1
     sta PPU_CONTROL
 
-    ; jmp main
+    jmp main
 .endproc
 
 ; ************************************************************
@@ -367,4 +367,53 @@ loop:
     bne loop
     sta gamepad
     rts
+.endproc
+
+; ************************************************************
+; Main application logic section includes the game loop
+; ************************************************************
+.segment "CODE"
+.proc main
+    ; Rendering is currently off
+
+    ; Initialize palette
+    ldx #0
+paletteloop:
+    lda default_palette, x
+    sta palette, x
+    inx
+    cpx 32
+    bcc paletteloop
+
+    ; Clear the name table
+    jsr clear_nametable
+
+    ; Draw some text
+    lda PPU_STATUS
+    lda #$20
+    sta PPU_VRAM_ADDRESS2
+    lda #$8A
+    sta PPU_VRAM_ADDRESS2
+
+    ldx #0
+textloop:
+    lda welcome_txt, x
+    sta PPU_VRAM_IO
+    inx
+    cmp #0
+    beq :+
+    jmp textloop
+    :
+
+    ; Render on
+    jsr ppu_update
+
+mainloop:
+    lda nmi_ready
+    cmp #0
+    bne mainloop
+
+    lda #1
+    sta nmi_ready
+    jmp mainloop
 .endproc
