@@ -382,7 +382,7 @@ paletteloop:
     lda default_palette, x
     sta palette, x
     inx
-    cpx 32
+    cpx #32
     bcc paletteloop
 
     ; Clear the name table
